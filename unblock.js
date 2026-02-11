@@ -105,34 +105,95 @@
   } catch (e) {}
 
   // ---------------------------------------------------------------
-  // 4. Auto-remove common DLP / "action blocked" modals
+  // 4. Intercept DLP network callbacks
+  //    MCAS DLP scripts often report the blocked action back to the
+  //    server via fetch/XHR, which can cause the portal to freeze
+  //    when the report fails or retries. Block these silently.
+  // ---------------------------------------------------------------
+
+  var origFetch = window.fetch;
+  window.fetch = function () {
+    var url = arguments[0];
+    if (typeof url === "string" && (
+      url.indexOf("mcas") !== -1 && url.indexOf("audit") !== -1 ||
+      url.indexOf("cloudappsecurity") !== -1 ||
+      url.indexOf("cas-notifier") !== -1 ||
+      url.indexOf("dlp") !== -1 && url.indexOf("report") !== -1
+    )) {
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    }
+    return origFetch.apply(this, arguments);
+  };
+
+  var origXHROpen = XMLHttpRequest.prototype.open;
+  var origXHRSend = XMLHttpRequest.prototype.send;
+  var blockedXHRs = new WeakSet();
+
+  XMLHttpRequest.prototype.open = function () {
+    this._url = arguments[1] || "";
+    if (typeof this._url === "string" && (
+      this._url.indexOf("mcas") !== -1 && this._url.indexOf("audit") !== -1 ||
+      this._url.indexOf("cloudappsecurity") !== -1 ||
+      this._url.indexOf("cas-notifier") !== -1 ||
+      this._url.indexOf("dlp") !== -1 && this._url.indexOf("report") !== -1
+    )) {
+      blockedXHRs.add(this);
+      return;
+    }
+    return origXHROpen.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.send = function () {
+    if (blockedXHRs.has(this)) {
+      Object.defineProperty(this, "readyState", { value: 4 });
+      Object.defineProperty(this, "status", { value: 200 });
+      Object.defineProperty(this, "responseText", { value: "{}" });
+      if (typeof this.onload === "function") {
+        try { this.onload(); } catch (e) {}
+      }
+      return;
+    }
+    return origXHRSend.apply(this, arguments);
+  };
+
+  // ---------------------------------------------------------------
+  // 5. Auto-remove DLP / "action blocked" modals (debounced)
   // ---------------------------------------------------------------
 
   var markers = [
-    "Action blocked",
+    "action blocked",
     "blocked by your organization",
-    "Copy/Print action is blocked",
-    "DLP Exception Request",
-    "CASB as exception type",
+    "copy/print action is blocked",
+    "dlp exception request",
+    "casb as exception type",
     "security policy",
-    "Defender for Cloud Apps",
+    "defender for cloud apps",
     "action is not allowed",
     "clipboard access denied",
     "copying is disabled",
     "paste is not allowed",
   ];
 
+  var cleaning = false;
+
   var clean = function () {
+    if (cleaning) return;
+    cleaning = true;
+
     var els = document.querySelectorAll(
       'div[class*="modal"], div[class*="dialog"], div[class*="overlay"], ' +
       'div[class*="popup"], div[class*="block"], div[class*="dlp"], ' +
       'div[class*="cas-"], div[class*="mcas"], div[role="dialog"], ' +
       'div[role="alertdialog"]'
     );
+
+    var found = false;
     els.forEach(function (el) {
+      if (found) return;
       var t = (el.textContent || "").toLowerCase();
       for (var i = 0; i < markers.length; i++) {
-        if (t.indexOf(markers[i].toLowerCase()) !== -1) {
+        if (t.indexOf(markers[i]) !== -1) {
+          found = true;
           el.remove();
           document.querySelectorAll(
             'div[class*="backdrop"], div[class*="overlay"], div[class*="mask"]'
@@ -148,9 +209,14 @@
         }
       }
     });
+
+    // Debounce: wait before allowing next clean
+    setTimeout(function () { cleaning = false; }, 200);
   };
 
-  var mo = new MutationObserver(function () { clean(); });
+  var mo = new MutationObserver(function () {
+    requestAnimationFrame(clean);
+  });
 
   var watch = function () {
     mo.observe(document.body || document.documentElement, {
@@ -162,13 +228,11 @@
   if (document.body) watch();
   else document.addEventListener("DOMContentLoaded", watch);
 
-  setInterval(clean, 500);
-
   // ---------------------------------------------------------------
-  // 5. Force text selection enabled via CSS
+  // 6. Force text selection enabled via CSS
   // ---------------------------------------------------------------
 
-  var inject = function () {
+  var injectStyle = function () {
     var s = document.createElement("style");
     s.textContent =
       "* { -webkit-user-select: text !important; " +
@@ -178,6 +242,6 @@
     (document.head || document.documentElement).appendChild(s);
   };
 
-  if (document.head) inject();
-  else document.addEventListener("DOMContentLoaded", inject);
+  if (document.head) injectStyle();
+  else document.addEventListener("DOMContentLoaded", injectStyle);
 })();
