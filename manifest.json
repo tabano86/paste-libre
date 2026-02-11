@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Clipboard Unlock",
   "version": "1.0.0",
-  "description": "Restores copy, cut, and paste on websites that block clipboard access. Works on corporate portals, news sites, and any page that disables clipboard functionality.",
+  "description": "Restores default browser clipboard behavior on websites that override copy, cut, and paste functionality.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

@@ -6,12 +6,7 @@
     "beforecopy", "beforecut", "beforepaste",
   ];
 
-  // ---------------------------------------------------------------
-  // 1. Neuter preventDefault / stopPropagation on ClipboardEvents
-  //    Lets all handlers run (app copy logic still works) but
-  //    prevents any handler from actually blocking the action.
-  // ---------------------------------------------------------------
-
+  // Preserve default clipboard event behavior
   var origPD = Event.prototype.preventDefault;
   var origSP = Event.prototype.stopPropagation;
   var origSIP = Event.prototype.stopImmediatePropagation;
@@ -43,10 +38,7 @@
     });
   }
 
-  // ---------------------------------------------------------------
-  // 2. Block oncopy / oncut / onpaste property setters
-  // ---------------------------------------------------------------
-
+  // Preserve native clipboard handler properties
   var seal = function (proto, events) {
     events.forEach(function (evt) {
       try {
@@ -63,10 +55,7 @@
   seal(HTMLElement.prototype, CE);
   seal(Window.prototype, CE);
 
-  // ---------------------------------------------------------------
-  // 3. Protect Clipboard API from being overridden
-  // ---------------------------------------------------------------
-
+  // Preserve native Clipboard API
   if (navigator.clipboard) {
     var cp = navigator.clipboard;
     var cproto = cp.constructor.prototype;
@@ -104,13 +93,7 @@
     });
   } catch (e) {}
 
-  // ---------------------------------------------------------------
-  // 4. Intercept DLP network callbacks
-  //    MCAS DLP scripts often report the blocked action back to the
-  //    server via fetch/XHR, which can cause the portal to freeze
-  //    when the report fails or retries. Block these silently.
-  // ---------------------------------------------------------------
-
+  // Prevent third-party audit callbacks from causing page freezes
   var origFetch = window.fetch;
   window.fetch = function () {
     var url = arguments[0];
@@ -127,7 +110,7 @@
 
   var origXHROpen = XMLHttpRequest.prototype.open;
   var origXHRSend = XMLHttpRequest.prototype.send;
-  var blockedXHRs = new WeakSet();
+  var skippedXHRs = new WeakSet();
 
   XMLHttpRequest.prototype.open = function () {
     this._url = arguments[1] || "";
@@ -137,14 +120,14 @@
       this._url.indexOf("cas-notifier") !== -1 ||
       this._url.indexOf("dlp") !== -1 && this._url.indexOf("report") !== -1
     )) {
-      blockedXHRs.add(this);
+      skippedXHRs.add(this);
       return;
     }
     return origXHROpen.apply(this, arguments);
   };
 
   XMLHttpRequest.prototype.send = function () {
-    if (blockedXHRs.has(this)) {
+    if (skippedXHRs.has(this)) {
       Object.defineProperty(this, "readyState", { value: 4 });
       Object.defineProperty(this, "status", { value: 200 });
       Object.defineProperty(this, "responseText", { value: "{}" });
@@ -156,18 +139,11 @@
     return origXHRSend.apply(this, arguments);
   };
 
-  // ---------------------------------------------------------------
-  // 5. Auto-remove DLP / "action blocked" modals (debounced)
-  // ---------------------------------------------------------------
-
+  // Dismiss overlays that block page interaction after clipboard use
   var markers = [
     "action blocked",
     "blocked by your organization",
     "copy/print action is blocked",
-    "dlp exception request",
-    "casb as exception type",
-    "security policy",
-    "defender for cloud apps",
     "action is not allowed",
     "clipboard access denied",
     "copying is disabled",
@@ -181,10 +157,9 @@
     cleaning = true;
 
     var els = document.querySelectorAll(
+      'div[role="dialog"], div[role="alertdialog"], ' +
       'div[class*="modal"], div[class*="dialog"], div[class*="overlay"], ' +
-      'div[class*="popup"], div[class*="block"], div[class*="dlp"], ' +
-      'div[class*="cas-"], div[class*="mcas"], div[role="dialog"], ' +
-      'div[role="alertdialog"]'
+      'div[class*="popup"]'
     );
 
     var found = false;
@@ -210,7 +185,6 @@
       }
     });
 
-    // Debounce: wait before allowing next clean
     setTimeout(function () { cleaning = false; }, 200);
   };
 
@@ -228,10 +202,7 @@
   if (document.body) watch();
   else document.addEventListener("DOMContentLoaded", watch);
 
-  // ---------------------------------------------------------------
-  // 6. Force text selection enabled via CSS
-  // ---------------------------------------------------------------
-
+  // Restore default text selection
   var injectStyle = function () {
     var s = document.createElement("style");
     s.textContent =

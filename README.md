@@ -1,6 +1,20 @@
 # Clipboard Unlock
 
-Chrome extension that restores copy, cut, and paste on websites that block clipboard access. Works against corporate DLP systems like Microsoft Defender for Cloud Apps (MCAS/CASB), Outlook Web, Teams, and any site that disables clipboard functionality.
+Chrome extension that restores default browser clipboard behavior on websites that override copy, cut, and paste functionality.
+
+## Disclaimer
+
+THIS SOFTWARE IS PROVIDED FOR EDUCATIONAL AND PERSONAL USE ONLY.
+
+The authors and contributors of this project are **not responsible** for how this software is used. By using this extension, you acknowledge and agree that:
+
+- **You are solely responsible** for ensuring your use complies with all applicable laws, regulations, employer policies, and terms of service.
+- This extension is provided **"as is"** with absolutely **no warranty**, express or implied.
+- The authors accept **no liability** for any damages, consequences, disciplinary actions, or legal claims arising from the use or misuse of this software.
+- This project is **not affiliated with, endorsed by, or associated with** Microsoft, Google, or any other company.
+- Users should **consult their organization's IT policies** before using this extension on managed or corporate accounts.
+
+Use at your own risk.
 
 ## Install
 
@@ -21,7 +35,7 @@ Coming soon.
 
 ## How it works
 
-Instead of blocking DLP event listeners (which DLP scripts can work around), Clipboard Unlock lets all event listeners run normally but makes `preventDefault()` and `stopPropagation()` do nothing on clipboard events. The web app works fine, DLP scripts *think* they blocked you, but they didn't.
+Some websites override default browser clipboard events using JavaScript. This extension preserves the browser's native clipboard behavior by ensuring standard event handling is not suppressed by third-party page scripts.
 
 ## Privacy
 
@@ -29,4 +43,4 @@ Zero data collection. Zero network requests. No analytics. No telemetry. Runs en
 
 ## License
 
-MIT
+MIT - See [LICENSE](LICENSE) for full text.
